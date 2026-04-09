@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calculadora Salarial — Costa Rica</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f5f5f3;color:#1a1a18;min-height:100vh;padding:2rem 1rem}
+.wrap{max-width:600px;margin:0 auto}
+h1{font-size:22px;font-weight:500;margin-bottom:4px}
+.sub{font-size:13px;color:#666;margin-bottom:1.5rem}
+.card{background:#fff;border:0.5px solid rgba(0,0,0,0.12);border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:12px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1rem}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:14px;color:#555;margin-bottom:6px}
+.field input{width:100%;height:40px;padding:0 12px;border:0.5px solid #ccc;border-radius:8px;background:#fff;color:#1a1a18;font-size:15px;font-family:inherit}
+.field input:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,165,.12)}
+.currency-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.currency-btn{height:44px;border:0.5px solid #ccc;border-radius:8px;background:#fff;color:#1a1a18;font-size:15px;font-family:inherit;cursor:pointer;transition:all .15s}
+.currency-btn.active{background:#E6F1FB;border-color:#185FA5;color:#0C447C;font-weight:500}
+.calc-btn{width:100%;height:44px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:500;font-family:inherit;cursor:pointer;margin-top:.5rem;transition:opacity .15s}
+.calc-btn:hover{opacity:.88}
+.tc-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#666;margin-top:8px}
+.dot{width:7px;height:7px;border-radius:50%;background:#1D9E75;flex-shrink:0}
+.dot.loading{background:#888;animation:pulse 1s infinite}
+.dot.error{background:#E24B4A}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.results{display:none}
+.row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:0.5px solid #eee;font-size:14px;gap:12px}
+.row:last-child{border-bottom:none}
+.row .label{color:#666}
+.row .amount{font-weight:500;white-space:nowrap}
+.row .amount.neg{color:#A32D2D}
+.net-card{background:#EAF3DE;border:0.5px solid #97C459;border-radius:12px;padding:1.25rem;margin-top:.5rem;text-align:center}
+.net-label{font-size:13px;color:#3B6D11;margin-bottom:4px}
+.net-amount{font-size:28px;font-weight:500;color:#27500A}
+.net-secondary{font-size:13px;color:#3B6D11;margin-top:4px}
+.section-label{font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.05em;padding:10px 0 4px;margin-top:4px}
+.gross-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid #eee;font-size:14px;font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Calculadora salarial</h1>
+  <p class="sub">Costa Rica — empleado privado</p>
+
+  <div class="card">
+    <div class="card-title">Moneda del salario</div>
+    <div class="currency-row">
+      <button class="currency-btn active" id="btn-crc" onclick="setCurrency('CRC')">₡ Colones (CRC)</button>
+      <button class="currency-btn" id="btn-usd" onclick="setCurrency('USD')">$ Dólares (USD)</button>
+    </div>
+    <div class="tc-badge"><span class="dot loading" id="tc-dot"></span><span id="tc-text">Obteniendo tipo de cambio...</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Salario bruto mensual</div>
+    <div class="field">
+      <label id="salary-label">Monto en colones (₡)</label>
+      <input type="number" id="salary-input" placeholder="Ej. 800000" min="0" step="1000" />
+    </div>
+    <button class="calc-btn" onclick="calcular()">Calcular salario neto</button>
+  </div>
+
+  <div class="card results" id="results-card">
+    <div class="card-title">Desglose detallado</div>
+    <div class="gross-row"><span>Salario bruto</span><span id="r-gross"></span></div>
+
+    <div class="section-label">Deducciones obrero (CCSS)</div>
+    <div class="row"><span class="label">SEM (enfermedad y maternidad) — 5.50%</span><span class="amount neg" id="r-sem"></span></div>
+    <div class="row"><span class="label">IVM (invalidez, vejez y muerte) — 2.67%</span><span class="amount neg" id="r-ivm"></span></div>
+    <div class="row"><span class="label">Banco Popular — 1.00%</span><span class="amount neg" id="r-bp"></span></div>
+
+    <div class="section-label">Otras deducciones</div>
+    <div class="row"><span class="label">Impuesto sobre la renta</span><span class="amount neg" id="r-renta"></span></div>
+    <div class="row"><span class="label">Asociación Solidarista — 5.00%</span><span class="amount neg" id="r-solidarista"></span></div>
+
+    <div class="section-label">Total deducciones</div>
+    <div class="row" style="font-weight:500"><span>Total deducido</span><span class="amount neg" id="r-total-ded"></span></div>
+
+    <div class="net-card">
+      <div class="net-label">Salario neto a recibir</div>
+      <div class="net-amount" id="r-neto"></div>
+      <div class="net-secondary" id="r-neto-alt"></div>
+    </div>
+
+    <div class="section-label" style="margin-top:1rem">Cargas patronales (referencia — no se deducen del empleado)</div>
+    <div class="row"><span class="label">SEM patronal — 9.25%</span><span class="amount" id="r-p-sem"></span></div>
+    <div class="row"><span class="label">IVM patronal — 3.67%</span><span class="amount" id="r-p-ivm"></span></div>
+    <div class="row"><span class="label">ASFA (asignaciones familiares) — 5.00%</span><span class="amount" id="r-p-asfa"></span></div>
+    <div class="row"><span class="label">IMAS — 0.50%</span><span class="amount" id="r-p-imas"></span></div>
+    <div class="row"><span class="label">INA — 1.50%</span><span class="amount" id="r-p-ina"></span></div>
+    <div class="row"><span class="label">Banco Popular patronal — 0.25%</span><span class="amount" id="r-p-bp"></span></div>
+    <div class="row" style="font-weight:500"><span>Total cargas patronales</span><span class="amount" id="r-p-total"></span></div>
+  </div>
+</div>
+
+<script>
+let currency='CRC';
+let tcCompra=null;
+
+function setCurrency(c){
+  currency=c;
+  document.getElementById('btn-crc').classList.toggle('active',c==='CRC');
+  document.getElementById('btn-usd').classList.toggle('active',c==='USD');
+  document.getElementById('salary-label').textContent=c==='CRC'?'Monto en colones (₡)':'Monto en dólares ($)';
+  document.getElementById('salary-input').placeholder=c==='CRC'?'Ej. 800000':'Ej. 2000';
+  document.getElementById('results-card').style.display='none';
+}
+
+function calcRenta(base){
+  const limites=[0,941000,1381000,2423000,4845000];
+  const tasas=[0,0.10,0.15,0.20,0.25];
+  let imp=0;
+  for(let i=0;i<tasas.length;i++){
+    const low=limites[i];
+    const high=limites[i+1]||Infinity;
+    if(base<=low) break;
+    imp+=(Math.min(base,high)-low)*tasas[i];
+  }
+  return imp;
+}
+
+async function fetchTC(){
+  const dot=document.getElementById('tc-dot');
+  const txt=document.getElementById('tc-text');
+  try{
+    const t=new Date();
+    const dd=String(t.getDate()).padStart(2,'0');
+    const mm=String(t.getMonth()+1).padStart(2,'0');
+    const yyyy=t.getFullYear();
+    const url=`https://gee.bccr.fi.cr/Indicadores/Suscripciones/WS/wsindicadoreseconomicos.asmx/ObtenerIndicadoresEconomicos?Indicador=317&FechaInicio=${dd}/${mm}/${yyyy}&FechaFinal=${dd}/${mm}/${yyyy}&Nombre=test&SubNiveles=N&CorreoElectronico=test@test.com&Token=test`;
+    const res=await fetch(url);
+    const text=await res.text();
+    const xml=new DOMParser().parseFromString(text,'text/xml');
+    const nums=xml.querySelectorAll('NUM_VALOR');
+    if(nums.length>0){
+      tcCompra=parseFloat(nums[0].textContent.replace(',','.'));
+      dot.className='dot';
+      txt.textContent=`Tipo de cambio compra: ₡${Math.round(tcCompra).toLocaleString('es-CR')} — ${dd}/${mm}/${yyyy}`;
+    } else throw new Error();
+  }catch{
+    tcCompra=500;
+    dot.className='dot error';
+    txt.textContent='BCCR no disponible — usando ₡500 como referencia.';
+  }
+}
+
+function calcular(){
+  const raw=parseFloat(document.getElementById('salary-input').value);
+  if(!raw||raw<=0) return;
+  const tc=tcCompra||500;
+  let bruto=currency==='USD'?raw*tc:raw;
+
+  const sem=bruto*.055, ivm=bruto*.0267, bp=bruto*.01;
+  const solidarista=bruto*.05;
+  const renta=calcRenta(bruto-sem-ivm-bp);
+  const totalDed=sem+ivm+bp+renta+solidarista;
+  const neto=bruto-totalDed;
+
+  const pSem=bruto*.0925,pIvm=bruto*.0367,pAsfa=bruto*.05;
+  const pImas=bruto*.005,pIna=bruto*.015,pBp=bruto*.0025;
+  const pTotal=pSem+pIvm+pAsfa+pImas+pIna+pBp;
+
+  function show(id,n){
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.textContent=currency==='CRC'
+      ?'₡'+Math.round(n).toLocaleString('es-CR')
+      :'$'+(n/tc).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+
+  ['r-gross','r-sem','r-ivm','r-bp','r-renta','r-solidarista','r-total-ded','r-neto',
+   'r-p-sem','r-p-ivm','r-p-asfa','r-p-imas','r-p-ina','r-p-bp','r-p-total']
+  .forEach((id,i)=>show(id,[bruto,sem,ivm,bp,renta,solidarista,totalDed,neto,
+    pSem,pIvm,pAsfa,pImas,pIna,pBp,pTotal][i]));
+
+  const altEl=document.getElementById('r-neto-alt');
+  altEl.textContent=currency==='CRC'
+    ?`≈ $${(neto/tc).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2})} al tipo de cambio ₡${Math.round(tc).toLocaleString('es-CR')}`
+    :`≈ ₡${Math.round(neto*tc).toLocaleString('es-CR')} colones`;
+
+  document.getElementById('results-card').style.display='block';
+}
+
+fetchTC();
+</script>
+</body>
+</html>
